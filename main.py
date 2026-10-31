@@ -36,6 +36,16 @@ async def log(guild, text):
         await ch.send(text)
 
 
+async def swap(member, add=None, remove=None):
+    try:
+        if remove and remove in member.roles:
+            await member.remove_roles(remove)
+        if add:
+            await member.add_roles(add)
+    except discord.HTTPException:
+        await log(member.guild, f"⚠️ {member.mention} 역할 변경 실패: 봇 역할을 의뢰인·완료고객보다 위로 올려주세요")
+
+
 async def owner_of(channel):
     try:
         return await channel.guild.fetch_member(int(channel.topic))
@@ -72,14 +82,12 @@ class TicketModal(discord.ui.Modal, title="의뢰 문의"):
             overwrites=overwrites,
             topic=str(user.id),
         )
-        client_role = role(guild, "client_role")
-        if client_role:
-            await user.add_roles(client_role)
         embed = discord.Embed(title="의뢰 문의", color=0x2ECC71)
         for name, field in (("종류", self.kind), ("내용", self.detail), ("환경", self.env), ("희망 기한", self.deadline), ("예산", self.budget)):
             embed.add_field(name=name, value=field.value or "-", inline=False)
         embed.set_footer(text="확인 후 견적 안내드릴게요.")
         await channel.send(content=f"{user.mention} {staff.mention if staff else ''}", embed=embed, view=TicketView())
+        await swap(user, add=role(guild, "client_role"))
         await interaction.followup.send(f"문의 채널이 열렸어요: {channel.mention}", ephemeral=True)
         await log(guild, f"📥 문의 열림: {channel.mention} ({user.mention}, {self.kind.value})")
 
@@ -103,12 +111,7 @@ class TicketView(discord.ui.View):
             return await interaction.response.send_message("대표만 누를 수 있어요.", ephemeral=True)
         member = await owner_of(interaction.channel)
         if member:
-            client_role = role(interaction.guild, "client_role")
-            done_role = role(interaction.guild, "done_role")
-            if client_role:
-                await member.remove_roles(client_role)
-            if done_role:
-                await member.add_roles(done_role)
+            await swap(member, add=role(interaction.guild, "done_role"), remove=role(interaction.guild, "client_role"))
         await interaction.response.send_message("작업이 완료됐어요. 이용해주셔서 감사합니다. #후기에 후기 남겨주시면 큰 힘이 됩니다.")
         await log(interaction.guild, f"✅ 작업 완료: {interaction.channel.mention}")
 
@@ -118,9 +121,8 @@ class TicketView(discord.ui.View):
             return await interaction.response.send_message("닫을 권한이 없어요.", ephemeral=True)
         await interaction.response.send_message("5초 후 채널이 닫혀요.")
         member = await owner_of(interaction.channel)
-        client_role = role(interaction.guild, "client_role")
-        if member and client_role in member.roles:
-            await member.remove_roles(client_role)
+        if member:
+            await swap(member, remove=role(interaction.guild, "client_role"))
         await log(interaction.guild, f"🔒 문의 닫힘: #{interaction.channel.name} (닫은 사람 {interaction.user.mention})")
         await asyncio.sleep(5)
         await interaction.channel.delete()
