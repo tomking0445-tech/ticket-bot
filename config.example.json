@@ -1,0 +1,9 @@
+{
+  "token": "봇 토큰",
+  "guild_id": "서버 ID",
+  "ticket_category": "진행중",
+  "staff_role": "대표",
+  "client_role": "의뢰인",
+  "done_role": "완료고객",
+  "log_channel": "로그"
+}
